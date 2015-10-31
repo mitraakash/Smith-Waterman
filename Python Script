@@ -1,0 +1,187 @@
+
+import sys
+
+def read_fasta(input_file):
+	'''This function reads a fasta file (assuming it only contains 1 sequence) and return the sequence as string.'''
+	
+	infile_path = sys.argv[0]
+	infile=open(input_file,'r')
+	
+	seq=''
+	infile.readline()
+	for line in infile:
+		line = line.strip()
+		seq = seq + line
+	infile.close()
+
+	return seq
+
+def take_parameter():
+	'''This function takes from user input the scores for match/mismatch/gap, return the three values as integer.'''
+
+	match = int(input("Input your match score ")) 
+
+	mismatch = int(input("Input your mismatch score ")) 
+
+	gap = int(input("Input your gap score ")) 
+
+	return match, mismatch, gap
+
+
+def initial_matrix(seq1, seq2):
+	'''This function take two sequences, find their length m and n, return two (m+1)*(n+1) matrices (nested list) filled with value of 0 (score_matrix) and "none" (pointer_matrix).'''
+
+	m = len(seq1)
+	n = len(seq2)
+	x = max(m,n) #initially was working with matrices of size m and n. Works for sequences with the same number of nucleotides but that may not always be the case you know
+	score_matrix = [[0 for i in xrange((x+1))] for i in xrange((x+1))] #using nested loops to iteratively fill the scoring matrix with 0s to initialize
+	pointer_matrix = [['none' for i in xrange((x+1))] for i in xrange((x+1))] #using nested loops to iteratively fill the pointer matrix with 'none' variables to initialize
+
+	
+	return score_matrix, pointer_matrix #score_matrix stores the computed scores, pointer_matrix stores the information ("diagonal", "up", "left" or "none") for tracking back
+
+
+def match_score(a, b):
+    if a == b: # comparison to check if bases in DNA are the same
+        return match 
+    elif a == '-' or b == '-': # comparison to check whether any gaps present in nucleotide sequence
+        return gap 
+    else: # no gaps and no matches, you've got yourself what appears to be a mismatch mate
+        return mismatch      
+
+def compute_matrix(seq1, seq2):
+	'''This function creates score_matrix and pointer_matrix'''
+	#call take_parameter() for scores
+
+	(match, mismatch, gap) = take_parameter()
+	
+	match = int(match)
+	
+	mismatch = int(mismatch)
+
+	gap = int(gap)
+
+	#call initial_matrix() for initializaiton of score_matrix and pointer_matrix
+	(score_matrix,pointer_matrix) = initial_matrix(seq1, seq2)
+
+	
+	#initialization of the diagonal, up and left scores.
+	diagonal_score = 0 # Score for the "diagonal" step when tracking back, either a match or a mismatch
+	up_score = 0 # Score for the "up" step when tracking back, insert a gap in the (first or second?) sequence
+	left_score = 0 # Score for the "left" step when tracking back, insert a gap in the (first or second?) sequence
+
+	#initialization of the max score and its position in matrix
+	max_score = 0
+	iMax = 0
+	jMax = 0
+
+	#fill in the score_matrix and keep track ("diagonal", "up", "left" or "none") in the pointer_matrix. Also keep track of the max_score and its position.
+	#use nested for loops to accomplish your task --> return what you are asked for
+	m=len(seq1)
+	n=len(seq2)
+	
+	for i in range(1,m+1): #using nested loops to iterate over 
+		for j in range(1,n+1):
+			#diagonal_score = score_matrix[i-1][j-1] + match_score(seq1[i-1], seq2[j-1])
+			up_score = score_matrix[i][j-1] + gap #storing score value for the variable traversing vertically
+			left_score  = score_matrix[i-1][j] + gap #stores score value for the variable traversing horizontally
+			if seq1[i-1] == seq2[j-1]: #stores score value for the variable traversing diagonally with a match
+				diagonal_score = score_matrix[i-1][j-1] + match
+			else: #stores score value for the variable traversing diagonally but without a match
+				diagonal_score = score_matrix[i-1][j-1] + gap
+			#print up_score
+			#print left_score
+			#print diagonal_score
+			
+			score_matrix [i][j] = max(0, up_score, left_score, diagonal_score)
+			if score_matrix[i][j] == 0: #using scores from scoring matrix to determine the path for the pointer matrix
+				pointer_matrix[i][j] = 0 # end of path
+				
+			if score_matrix[i][j] == left_score:
+				pointer_matrix[i][j] = 1 # trace up
+		
+			if score_matrix[i][j] == up_score:
+				pointer_matrix[i][j] = 2 # trace left
+				
+			if score_matrix[i][j] == diagonal_score:
+				pointer_matrix[i][j] = 3 # trace diagonal
+				
+			if score_matrix[i][j] >= max_score:
+				iMax = i
+				jMax = j
+				max_score = score_matrix[i][j];
+				
+	
+	return score_matrix, pointer_matrix, iMax, jMax
+
+
+
+def print_score_matrix(score_matrix):
+	'''This function prints score matrix'''
+	
+	i=0
+	score=''
+	for i in score_matrix:
+		
+		print " ".join(str(e) for e in i)
+		
+	
+	return
+
+
+def track_back(pointer_matrix, seq1, seq2, iMax, jMax):
+	'''Tracks back to create the aligned sequence pair'''
+	#initialization of aligned sequences
+	aligned_seq1 = ''
+	aligned_seq2 = ''
+
+	#start from the position where the max score is.
+	i = iMax
+	j = jMax
+
+	#track backwards in the pointer_matrix, based on the info ("diagonal", "up", "left" or "none") decide for each position whether it is a match/mismatch, a gap in the first/second sequence, or to stop.
+	while pointer_matrix[i][j] != 0: #based on the information computed in the pointer matrix, we can trace back the path followed to allow for implementation of the Smith Waterman algorithm.
+		#trace back path to look for alignment based on Smith Waterman. Use the 2 sequences initialized earlier to store the optimal alignment sequences.
+		if pointer_matrix[i][j] == 3: 
+			aligned_seq1 += seq1[i-1]
+			aligned_seq2 += seq2[j-1]
+			i -= 1
+			j -= 1
+	
+		elif pointer_matrix[i][j]==2: 
+			aligned_seq1 += '-'
+			aligned_seq2 += seq2[j-1]
+			j -= 1
+	
+		elif pointer_matrix[i][j]==1: 
+			aligned_seq1 += seq1[i-1]
+			aligned_seq2 += '-'
+			i -= 1
+
+	#NOTE: Your aligned sequences are in the opposite order. You need to reverse the sequences to get the actual alignment
+	
+	return (aligned_seq1 [::-1], aligned_seq2 [::-1])
+
+
+#Main#
+
+#Call read_fasta() and print the two sequences to be aligned.
+input1 = raw_input("Please input your first fasta file: ")
+input2 = raw_input("Please input your second fasta file: ")
+seq1 = read_fasta(input1)
+seq2 = read_fasta(input2)
+print "The first sequence is: " + seq1
+print "The second sequence is: " + seq2
+
+#Call compute_matrix() and calculate the matrix.
+(score_matrix, pointer_matrix, iMax, jMax) = compute_matrix(seq1, seq2)
+
+#Call print_score_matrix() to display the matrix
+print_score_matrix(score_matrix)
+
+
+#Call track_back() to get the aligned sequences.
+(aligned_seq1, aligned_seq2) = track_back(pointer_matrix, seq1, seq2, iMax, jMax)
+
+print aligned_seq1
+print aligned_seq2
